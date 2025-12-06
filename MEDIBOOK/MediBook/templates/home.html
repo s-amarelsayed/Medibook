@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="jumbotron text-center mb-4">
+    <h1>Find Your Doctor</h1>
+    <p class="lead">Search by specialization or city</p>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" action="{{ url_for('doctor.search') }}" class="row g-3">
+            <div class="col-md-5">
+                <select name="specialization" class="form-select">
+                    <option value="">All Specializations</option>
+                    {% for spec in specializations %}
+                    <option value="{{ spec }}" {% if request.args.get('specialization')==spec %}selected{% endif %}>{{
+                        spec }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-5">
+                <select name="location" class="form-select">
+                    <option value="">All Cities</option>
+                    {% for city in cities %}
+                    <option value="{{ city }}" {% if request.args.get('location')==city %}selected{% endif %}>{{ city }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Search</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    {% for doctor in doctors %}
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">{{ doctor.user.name }}</h5>
+                <h6 class="card-subtitle mb-2 text-muted">{{ doctor.specialization }}</h6>
+                <p class="card-text">
+                    <strong>Clinic:</strong> {{ doctor.clinic.name }}<br>
+                    <strong>City:</strong> {{ doctor.clinic.city }}, {{ doctor.clinic.country }}<br>
+                    <strong>Address:</strong> {{ doctor.clinic.address }}<br>
+                    <strong>Price:</strong> ${{ doctor.price }}
+                </p>
+                <a href="{{ url_for('doctor.profile', doctor_id=doctor.doctor_id) }}"
+                    class="btn btn-outline-primary">View Profile</a>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12 text-center">
+        <p>No doctors found matching your criteria.</p>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h2 class="mb-4">Dashboard - {{ role|capitalize }}</h2>
+    </div>
+</div>
+
+{% if role == 'patient' %}
+<div class="card">
+    <div class="card-header">My Appointments</div>
+    <div class="card-body">
+        {% if appointments %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Date & Time</th>
+                        <th>Doctor</th>
+                        <th>Clinic</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for appt in appointments %}
+                    <tr>
+                        <td>{{ appt.datetime.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>{{ appt.doctor.user.name }}</td>
+                        <td>{{ appt.doctor.clinic.name }}</td>
+                        <td>
+                            <span
+                                class="badge bg-{{ 'success' if appt.status == 'confirmed' else 'warning' if appt.status == 'pending' else 'danger' }}">
+                                {{ appt.status }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if appt.status != 'cancelled' %}
+                            <form
+                                action="{{ url_for('booking.cancel_appointment', appointment_id=appt.appointment_id) }}"
+                                method="POST" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-danger"
+                                    onclick="return confirm('Are you sure?')">Cancel</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p>No appointments found.</p>
+        <a href="{{ url_for('doctor.search') }}" class="btn btn-primary">Book Appointment</a>
+        {% endif %}
+    </div>
+</div>
+
+{% elif role == 'doctor' %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">Add Available Time Slot</div>
+            <div class="card-body">
+                <form action="{{ url_for('booking.add_availability') }}" method="POST">
+                    <div class="mb-3">
+                        <label for="date" class="form-label">Date</label>
+                        <input type="date" class="form-control" id="date" name="date" required min="{{ today }}">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="start_time" class="form-label">Start Time</label>
+                            <input type="time" class="form-control" id="start_time" name="start_time" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="end_time" class="form-label">End Time</label>
+                            <input type="time" class="form-control" id="end_time" name="end_time" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Slot</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">My Available Slots</div>
+            <div class="card-body">
+                {% if availability_slots %}
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for slot in availability_slots %}
+                            <tr>
+                                <td>{{ slot.date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}</td>
+                                <td>
+                                    {% if slot.is_booked %}
+                                    <span class="badge bg-danger">Booked</span>
+                                    {% else %}
+                                    <span class="badge bg-success">Available</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if not slot.is_booked %}
+                                    <form
+                                        action="{{ url_for('booking.delete_availability', availability_id=slot.availability_id) }}"
+                                        method="POST" style="display:inline;">
+                                        <button type="submit" class="btn btn-sm btn-danger"
+                                            onclick="return confirm('Delete this slot?')">Delete</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p>No availability slots added yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Incoming Appointments</div>
+            <div class="card-body">
+                {% if appointments %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date & Time</th>
+                                <th>Patient</th>
+                                <th>Phone</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for appt in appointments %}
+                            <tr>
+                                <td>{{ appt.datetime.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ appt.patient.user.name }}</td>
+                                <td>{{ appt.patient.phone }}</td>
+                                <td>
+                                    <span
+                                        class="badge bg-{{ 'success' if appt.status == 'confirmed' else 'warning' if appt.status == 'pending' else 'danger' }}">
+                                        {{ appt.status }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p>No appointments scheduled.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% elif role == 'admin' %}
+<div class="card">
+    <div class="card-header">Unverified Doctors</div>
+    <div class="card-body">
+        {% if unverified_doctors %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Specialization</th>
+                        <th>Clinic</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doctor in unverified_doctors %}
+                    <tr>
+                        <td>{{ doctor.user.name }}</td>
+                        <td>{{ doctor.user.email }}</td>
+                        <td>{{ doctor.specialization }}</td>
+                        <td>{{ doctor.clinic.name }}</td>
+                        <td>
+                            <form action="{{ url_for('booking.approve_doctor', user_id=doctor.user_id) }}" method="POST"
+                                style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p>No unverified doctors.</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<script>
+    // Set min date to today for availability form
+    document.addEventListener('DOMContentLoaded', function () {
+        const dateInput = document.getElementById('date');
+        if (dateInput) {
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.setAttribute('min', today);
+        }
+    });
+</script>
+{% endblock %}

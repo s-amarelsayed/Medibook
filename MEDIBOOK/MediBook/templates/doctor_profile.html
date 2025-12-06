@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body text-center">
+                <h3 class="card-title">{{ doctor.user.name }}</h3>
+                <p class="text-muted">{{ doctor.specialization }}</p>
+                <hr>
+                <p class="text-start">
+                    <strong>Clinic:</strong> {{ doctor.clinic.name }}<br>
+                    <strong>Address:</strong> {{ doctor.clinic.address }}<br>
+                    <strong>Price:</strong> ${{ doctor.price }}
+                </p>
+                {% if doctor.bio %}
+                <p class="card-text">{{ doctor.bio }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">Book Appointment</div>
+            <div class="card-body">
+                {% if session.get('role') == 'patient' %}
+                {% if available_slots %}
+                <form action="{{ url_for('booking.book_appointment', doctor_id=doctor.doctor_id) }}" method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Select Available Time Slot</label>
+                        <div class="list-group">
+                            {% for slot in available_slots %}
+                            <label class="list-group-item">
+                                <input class="form-check-input me-2" type="radio" name="availability_id"
+                                    value="{{ slot.availability_id }}" required>
+                                <strong>{{ slot.date.strftime('%A, %B %d, %Y') }}</strong><br>
+                                <small class="text-muted">{{ slot.start_time.strftime('%I:%M %p') }} - {{
+                                    slot.end_time.strftime('%I:%M %p') }}</small>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <input type="hidden" name="payment_method" value="at_clinic">
+
+                    <button type="submit" class="btn btn-success w-100">Confirm Booking (Pay at Clinic)</button>
+                </form>
+                {% else %}
+                <div class="alert alert-warning">
+                    No available time slots at the moment. Please check back later.
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="alert alert-warning">Please login as a patient to book.</div>
+                <a href="{{ url_for('auth.login') }}" class="btn btn-primary w-100">Login</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
