@@ -1,8 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from models import db
-from models.user_model import User, Doctor, Patient
-from models.appointment_model import Appointment, DoctorAvailability
-from datetime import datetime, time, date
+from repositories import UserRepository, AppointmentRepository, AvailabilityRepository, DoctorRepository, PatientRepository, ReviewRepository
+from datetime import datetime
 
 booking_bp = Blueprint('booking', __name__)
 
@@ -12,32 +10,31 @@ def book_appointment(doctor_id):
         flash('Please login as a patient to book an appointment.')
         return redirect(url_for('auth.login'))
 
-    doctor = Doctor.query.get_or_404(doctor_id)
-    patient = Patient.query.filter_by(user_id=session['user_id']).first()
-    
+    doctor = DoctorRepository.get_by_id(doctor_id)
+    if not doctor:
+        flash('Doctor not found.')
+        return redirect(url_for('doctor.search'))
+
+    patient = PatientRepository.get_by_user_id(session['user_id'])
     if not patient:
         flash('Patient profile not found.')
         return redirect(url_for('doctor.profile', doctor_id=doctor_id))
     
     availability_id = request.form.get('availability_id')
-    payment_method = request.form.get('payment_method')
+    payment_method = 'at_clinic'
     
     if not availability_id:
         flash('Please select an available time slot.')
         return redirect(url_for('doctor.profile', doctor_id=doctor_id))
     
-    # Get the availability slot
-    availability = DoctorAvailability.query.get_or_404(availability_id)
-    
-    # Check if already booked
-    if availability.is_booked:
-        flash('This time slot has already been booked. Please choose another.')
+    availability = AvailabilityRepository.get_by_id(availability_id)
+    if not availability or availability.is_booked:
+        flash('This time slot is no longer available.')
         return redirect(url_for('doctor.profile', doctor_id=doctor_id))
     
-    # Create appointment datetime from availability
     appointment_datetime = datetime.combine(availability.date, availability.start_time)
     
-    new_appointment = Appointment(
+    AppointmentRepository.create(
         patient_id=patient.patient_id,
         doctor_id=doctor_id,
         datetime=appointment_datetime,
@@ -45,11 +42,8 @@ def book_appointment(doctor_id):
         payment_method=payment_method
     )
     
-    # Mark availability as booked
     availability.is_booked = True
-    
-    db.session.add(new_appointment)
-    db.session.commit()
+    UserRepository.commit()
     
     flash('Appointment booked successfully!')
     return redirect(url_for('booking.dashboard'))
@@ -63,24 +57,32 @@ def dashboard():
     user_id = session.get('user_id')
     
     if role == 'patient':
-        patient = Patient.query.filter_by(user_id=user_id).first()
+        patient = PatientRepository.get_by_user_id(user_id)
         if not patient:
             flash('Patient profile not found.')
             return redirect(url_for('doctor.search'))
-        appointments = Appointment.query.filter_by(patient_id=patient.patient_id).order_by(Appointment.datetime).all()
-        return render_template('dashboard.html', appointments=appointments, role='patient')
+        appointments = AppointmentRepository.get_by_patient(patient.patient_id)
+        return render_template('dashboard.html', appointments=appointments, role='patient', now=datetime.now())
         
     elif role == 'doctor':
-        doctor = Doctor.query.filter_by(user_id=user_id).first()
+        doctor = DoctorRepository.get_by_user_id(user_id)
         if not doctor:
             flash('Doctor profile not found.')
             return redirect(url_for('doctor.search'))
-        appointments = Appointment.query.filter_by(doctor_id=doctor.doctor_id).order_by(Appointment.datetime).all()
-        availability_slots = DoctorAvailability.query.filter_by(doctor_id=doctor.doctor_id).order_by(DoctorAvailability.date, DoctorAvailability.start_time).all()
+        appointments = AppointmentRepository.get_by_doctor(doctor.doctor_id)
+        availability_slots = AvailabilityRepository.get_by_doctor(doctor.doctor_id)
+        
+        # Add patient medical history to each appointment for doctor view
+        for appt in appointments:
+            if appt.patient and appt.patient.user and hasattr(appt.patient.user, 'patient') and appt.patient.user.patient:
+                appt.patient_medical_history = appt.patient.user.patient.medical_history or 'Not provided'
+            else:
+                appt.patient_medical_history = 'Not provided'
+        
         return render_template('dashboard.html', appointments=appointments, availability_slots=availability_slots, role='doctor', doctor=doctor)
         
     elif role == 'admin':
-        unverified_doctors = Doctor.query.join(User).filter(User.verified == False, User.role == 'doctor').all()
+        unverified_doctors = DoctorRepository.get_unverified()
         return render_template('dashboard.html', unverified_doctors=unverified_doctors, role='admin')
         
     return redirect(url_for('doctor.search'))
@@ -91,8 +93,7 @@ def add_availability():
         flash('Only doctors can add availability.')
         return redirect(url_for('auth.login'))
     
-    doctor = Doctor.query.filter_by(user_id=session['user_id']).first()
-    
+    doctor = DoctorRepository.get_by_user_id(session['user_id'])
     if not doctor:
         flash('Doctor profile not found.')
         return redirect(url_for('booking.dashboard'))
@@ -110,28 +111,12 @@ def add_availability():
         start_time_obj = datetime.strptime(start_time_str, '%H:%M').time()
         end_time_obj = datetime.strptime(end_time_str, '%H:%M').time()
         
-        # Check if slot already exists
-        existing = DoctorAvailability.query.filter_by(
-            doctor_id=doctor.doctor_id,
-            date=slot_date,
-            start_time=start_time_obj,
-            end_time=end_time_obj
-        ).first()
-        
-        if existing:
+        if AvailabilityRepository.get_existing(doctor.doctor_id, slot_date, start_time_obj, end_time_obj):
             flash('This availability slot already exists.')
             return redirect(url_for('booking.dashboard'))
         
-        new_availability = DoctorAvailability(
-            doctor_id=doctor.doctor_id,
-            date=slot_date,
-            start_time=start_time_obj,
-            end_time=end_time_obj,
-            is_booked=False
-        )
-        
-        db.session.add(new_availability)
-        db.session.commit()
+        AvailabilityRepository.create(doctor.doctor_id, slot_date, start_time_obj, end_time_obj)
+        UserRepository.commit()
         flash('Availability slot added successfully!')
     except Exception as e:
         flash(f'Error adding availability: {str(e)}')
@@ -144,15 +129,17 @@ def delete_availability(availability_id):
         flash('Only doctors can delete availability.')
         return redirect(url_for('auth.login'))
     
-    availability = DoctorAvailability.query.get_or_404(availability_id)
+    availability = AvailabilityRepository.get_by_id(availability_id)
+    if not availability:
+        flash('Availability slot not found.')
+        return redirect(url_for('booking.dashboard'))
     
-    # Check if already booked
     if availability.is_booked:
         flash('Cannot delete a booked slot.')
         return redirect(url_for('booking.dashboard'))
     
-    db.session.delete(availability)
-    db.session.commit()
+    AvailabilityRepository.delete(availability)
+    UserRepository.commit()
     flash('Availability slot deleted.')
     return redirect(url_for('booking.dashboard'))
 
@@ -161,30 +148,56 @@ def cancel_appointment(appointment_id):
     if 'user_id' not in session:
         return redirect(url_for('auth.login'))
         
-    appointment = Appointment.query.get_or_404(appointment_id)
+    appointment = AppointmentRepository.get_by_id(appointment_id)
+    if not appointment:
+        flash('Appointment not found.')
+        return redirect(url_for('booking.dashboard'))
     
-    # Free up the availability slot if it exists
-    availability = DoctorAvailability.query.filter_by(
-        doctor_id=appointment.doctor_id,
-        date=appointment.datetime.date(),
-        start_time=appointment.datetime.time()
-    ).first()
+    availability = AvailabilityRepository.get_existing(
+        appointment.doctor_id,
+        appointment.datetime.date(),
+        appointment.datetime.time(),
+        None # End time not needed for match in this context if using start_time+date
+    )
     
     if availability:
         availability.is_booked = False
     
     appointment.status = 'cancelled'
-    db.session.commit()
+    UserRepository.commit()
     flash('Appointment cancelled.')
     return redirect(url_for('booking.dashboard'))
 
-@booking_bp.route('/approve_doctor/<int:user_id>', methods=['POST'])
-def approve_doctor(user_id):
-    if session.get('role') != 'admin':
+@booking_bp.route('/submit_review/<int:appointment_id>', methods=['POST'])
+def submit_review(appointment_id):
+    if 'user_id' not in session or session.get('role') != 'patient':
         return redirect(url_for('auth.login'))
         
-    user = User.query.get_or_404(user_id)
-    user.verified = True
-    db.session.commit()
-    flash('Doctor approved.')
+    appointment = AppointmentRepository.get_by_id(appointment_id)
+    if not appointment:
+        flash('Appointment not found.')
+        return redirect(url_for('booking.dashboard'))
+        
+    patient = PatientRepository.get_by_user_id(session['user_id'])
+    if not patient or appointment.patient_id != patient.patient_id:
+        flash('Unauthorized access.')
+        return redirect(url_for('booking.dashboard'))
+        
+    rating = request.form.get('rating')
+    feedback = request.form.get('feedback')
+    
+    if not rating:
+        flash('Rating is required.')
+        return redirect(url_for('booking.dashboard'))
+        
+    ReviewRepository.create(
+        patient_id=patient.patient_id,
+        doctor_id=appointment.doctor_id,
+        appointment_id=appointment_id,
+        rating=int(rating),
+        feedback=feedback
+    )
+    UserRepository.commit()
+    
+    flash('Review submitted successfully!')
     return redirect(url_for('booking.dashboard'))

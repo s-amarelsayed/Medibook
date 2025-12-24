@@ -7,8 +7,11 @@ class User(db.Model):
     email = db.Column(db.String(100), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     phone = db.Column(db.String(20), unique=True)
+    #phase5: Admin role added to options
     role = db.Column(db.Enum('patient', 'doctor', 'admin', name='user_roles'), default='patient', nullable=False)
+    #phase5: Doctor verification status by admin
     verified = db.Column(db.Boolean, default=False)
+    #phase5: User profile picture
     profile_picture = db.Column(db.String(255), default='default.png')
 
     # Relationships
@@ -21,6 +24,7 @@ class Patient(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     dob = db.Column(db.Date, nullable=False)
     phone = db.Column(db.String(20))
+    medical_history = db.Column(db.Text, default='', nullable=True)
 
 class Doctor(db.Model):
     __tablename__ = 'doctors'

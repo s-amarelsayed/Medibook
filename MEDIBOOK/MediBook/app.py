@@ -1,29 +1,52 @@
 from flask import Flask
 from config import Config
-from models import db
+from models import db, login_manager
+from flask_migrate import Migrate
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
 # Import models to ensure they are registered with SQLAlchemy
 from models.user_model import User, Patient, Doctor
 from models.appointment_model import Clinic, Appointment, DoctorAvailability, Review
 
-def create_app():
+def create_app(config_class=Config):
+    """
+    App Factory Pattern Implementation.
+    Creates and configures an instance of the Flask application.
+    This allows for creating multiple instances with different configurations (e.g., testing vs production).
+    """
     app = Flask(__name__)
-    app.config.from_object(Config)
+    app.config.from_object(config_class)
 
     db.init_app(app)
+    from database_singleton import db_singleton
+    db_singleton.initialize(db)
+    login_manager.init_app(app)
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        return User.query.get(int(user_id))
 
     with app.app_context():
         # Drop all tables and recreate to ensure schema is up to date
         db.drop_all()
         db.create_all()
-        seed_database()
 
     from controllers.auth_routes import auth_bp
     from controllers.doctor_routes import doctor_bp
     from controllers.booking_routes import booking_bp
+    from controllers.admin_routes import admin_bp
     
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(doctor_bp)
-    app.register_blueprint(booking_bp)
+    app.register_blueprint(auth_bp, url_prefix='/auth')
+    app.register_blueprint(doctor_bp) # Main routes usually at root or /doctor, keeping as is for home search
+    app.register_blueprint(booking_bp, url_prefix='/booking')
+    
+    from controllers.chat_routes import chat_bp
+    app.register_blueprint(chat_bp, url_prefix='/chat')
+    
+    app.register_blueprint(admin_bp)
 
     return app
 
@@ -78,8 +101,6 @@ def seed_database():
 
 if __name__ == '__main__':
     app = create_app()
+    with app.app_context():
+        seed_database()
     app.run(debug=True)
-
-
-
-

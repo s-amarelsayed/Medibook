@@ -3,7 +3,10 @@
 {% block content %}
 <div class="row">
     <div class="col-12">
-        <h2 class="mb-4">Dashboard - {{ role|capitalize }}</h2>
+        <h2 class="mb-4">
+            Dashboard - {{ role|capitalize }}
+            <a href="{{ url_for('auth.edit_profile') }}" class="btn btn-outline-primary btn-sm ms-3">Edit Profile</a>
+        </h2>
     </div>
 </div>
 
@@ -44,6 +47,14 @@
                                     onclick="return confirm('Are you sure?')">Cancel</button>
                             </form>
                             {% endif %}
+                            <!-- #phase5: Review Button -->
+                            {% if appt.status == 'confirmed' and appt.datetime < now %}
+                            <button type="button"
+                                class="btn btn-sm btn-info" data-bs-toggle="modal"
+                                data-bs-target="#reviewModal{{ appt.appointment_id }}">
+                                Review
+                            </button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -56,6 +67,45 @@
         {% endif %}
     </div>
 </div>
+
+<!-- All Review Modals - Moved OUTSIDE the table (this fixes the layout issue) -->
+{% for appt in appointments %}
+    {% if appt.status == 'confirmed' and appt.datetime < now %}
+    <div class="modal fade" id="reviewModal{{ appt.appointment_id }}" tabindex="-1" aria-labelledby="reviewModalLabel{{ appt.appointment_id }}" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form
+                    action="{{ url_for('booking.submit_review', appointment_id=appt.appointment_id) }}"
+                    method="POST">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="reviewModalLabel{{ appt.appointment_id }}">Review Dr. {{ appt.doctor.user.name }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">Rating</label>
+                            <select name="rating" class="form-select" required>
+                                <option value="5">5 - Excellent</option>
+                                <option value="4">4 - Very Good</option>
+                                <option value="3">3 - Good</option>
+                                <option value="2">2 - Fair</option>
+                                <option value="1">1 - Poor</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Feedback</label>
+                            <textarea name="feedback" class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">Submit Review</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+{% endfor %}
 
 {% elif role == 'doctor' %}
 <div class="row">
@@ -76,10 +126,30 @@
                         <div class="col-md-6 mb-3">
                             <label for="end_time" class="form-label">End Time</label>
                             <input type="time" class="form-control" id="end_time" name="end_time" required>
+                            <div class="text-danger small mt-1" id="time-error" style="display:none;">
+                                End time must be after start time!
+                            </div>
                         </div>
                     </div>
+
                     <button type="submit" class="btn btn-primary">Add Slot</button>
                 </form>
+
+                <script>
+                document.querySelector('form').addEventListener('submit', function(e) {
+                    const start = document.getElementById('start_time').value;
+                    const end = document.getElementById('end_time').value;
+                    const error = document.getElementById('time-error');
+
+                    if (start && end && start >= end) {
+                        e.preventDefault();
+                        error.style.display = 'block';
+                        error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    } else {
+                        error.style.display = 'none';
+                    }
+                });
+                </script>
             </div>
         </div>
 
@@ -101,7 +171,7 @@
                             {% for slot in availability_slots %}
                             <tr>
                                 <td>{{ slot.date.strftime('%Y-%m-%d') }}</td>
-                                <td>{{ slot.start_time.strftime('%H:%M') }} - {{ slot.end_time.strftime('%H:%M') }}</td>
+                                <td>{{ slot.start_time.strftime('%I:%M %p') }} - {{ slot.end_time.strftime('%I:%M %p') }}</td>
                                 <td>
                                     {% if slot.is_booked %}
                                     <span class="badge bg-danger">Booked</span>
@@ -143,6 +213,7 @@
                                 <th>Date & Time</th>
                                 <th>Patient</th>
                                 <th>Phone</th>
+                                <th>Medical History</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -151,7 +222,8 @@
                             <tr>
                                 <td>{{ appt.datetime.strftime('%Y-%m-%d %H:%M') }}</td>
                                 <td>{{ appt.patient.user.name }}</td>
-                                <td>{{ appt.patient.phone }}</td>
+                                <td>{{ appt.patient.phone or 'Not provided' }}</td>
+                                <td>{{ appt.patient_medical_history }}</td>
                                 <td>
                                     <span
                                         class="badge bg-{{ 'success' if appt.status == 'confirmed' else 'warning' if appt.status == 'pending' else 'danger' }}">
@@ -172,43 +244,8 @@
 </div>
 
 {% elif role == 'admin' %}
-<div class="card">
-    <div class="card-header">Unverified Doctors</div>
-    <div class="card-body">
-        {% if unverified_doctors %}
-        <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Specialization</th>
-                        <th>Clinic</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for doctor in unverified_doctors %}
-                    <tr>
-                        <td>{{ doctor.user.name }}</td>
-                        <td>{{ doctor.user.email }}</td>
-                        <td>{{ doctor.specialization }}</td>
-                        <td>{{ doctor.clinic.name }}</td>
-                        <td>
-                            <form action="{{ url_for('booking.approve_doctor', user_id=doctor.user_id) }}" method="POST"
-                                style="display:inline;">
-                                <button type="submit" class="btn btn-sm btn-success">Approve</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p>No unverified doctors.</p>
-        {% endif %}
-    </div>
+<div class="alert alert-info">
+    Admin Dashboard has moved. <a href="{{ url_for('admin.dashboard') }}">Click here to go to Admin Panel</a>.
 </div>
 {% endif %}
 
@@ -220,6 +257,14 @@
             const today = new Date().toISOString().split('T')[0];
             dateInput.setAttribute('min', today);
         }
+    });
+
+    // Fix Bootstrap modal backdrop bug (prevents gray frozen screen)
+    document.querySelectorAll('.modal').forEach(modal => {
+        modal.addEventListener('hidden.bs.modal', function () {
+            document.body.classList.remove('modal-open');
+            document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+        });
     });
 </script>
 {% endblock %}

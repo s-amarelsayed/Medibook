@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Admin Dashboard</h2>
+    
+    <!-- Stats Row -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card text-white bg-primary mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Total Patients</h5>
+                    <p class="card-text display-4">{{ total_patients }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-success mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Total Doctors</h5>
+                    <p class="card-text display-4">{{ total_doctors }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card text-white bg-info mb-3">
+                <div class="card-body">
+                    <h5 class="card-title">Total Appointments</h5>
+                    <p class="card-text display-4">{{ total_appointments }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Verification Section -->
+    <div class="card">
+        <div class="card-header bg-warning">
+            Pending Doctor Verifications
+        </div>
+        <div class="card-body">
+            {% if unverified_doctors %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Specialization</th>
+                                <th>Clinic</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in unverified_doctors %}
+                            <tr>
+                                <td>{{ doc.user.name }}</td>
+                                <td>{{ doc.user.email }}</td>
+                                <td>{{ doc.specialization }}</td>
+                                <td>{{ doc.clinic.name }}</td>
+                                <td>
+                                    <form action="{{ url_for('admin.verify_doctor', doctor_id=doc.doctor_id) }}" method="POST">
+                                        <button type="submit" class="btn btn-success btn-sm">Verify</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted">No pending verifications.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

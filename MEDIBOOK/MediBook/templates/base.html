@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
+
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
@@ -16,20 +18,40 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    {% if session.get('user_id') %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('booking.dashboard') }}">Dashboard</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('auth.logout') }}">Logout ({{ session.get('name') }})</a>
-                        </li>
+                    {% if session.get('user_id') %} <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('booking.dashboard') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown"
+                            role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <img src="{{ url_for('static', filename='uploads/profiles/' + (session.get('profile_picture') or 'default.png')) }}"
+                                alt="Profile" class="rounded-circle border"
+                                style="width: 32px; height: 32px; object-fit: cover; margin-right: 8px;">
+                            <span>{{ session.get('name') }}</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li>
+                                <h6 class="dropdown-header">Signed in as<br><strong>{{ session.get('name') }}</strong>
+                                </h6>
+                            </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.edit_profile') }}">My Profile</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('booking.dashboard') }}">Dashboard</a></li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">Logout</a></li>
+                        </ul>
+                    </li>
                     {% else %}
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('auth.login') }}">Login</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ url_for('auth.register') }}">Register</a>
-                        </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.login') }}">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.register') }}">Register</a>
+                    </li>
                     {% endif %}
                 </ul>
             </div>
@@ -38,16 +60,109 @@
 
     <div class="container mt-4">
         {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="alert alert-info">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-info">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
         {% endwith %}
-        
+
         {% block content %}{% endblock %}
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- AI Chat Widget -->
+    <div id="chat-widget-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
+        <!-- Chat Button -->
+        <button id="chat-toggle-btn" class="btn btn-primary rounded-circle p-3 shadow-lg"
+            style="width: 60px; height: 60px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" fill="currentColor"
+                class="bi bi-chat-dots-fill" viewBox="0 0 16 16">
+                <path
+                    d="M16 8c0 3.866-3.582 7-8 7a9.06 9.06 0 0 1-2.347-.306c-.584.296-1.925.864-4.181 1.234-.2.032-.352-.176-.273-.362.354-.836.674-1.95.77-2.966C.744 11.37 0 9.76 0 8c0-3.866 3.582-7 8-7s8 3.134 8 7zM5 8a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm4 0a1 1 0 1 0-2 0 1 1 0 0 0 2 0zm3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2z" />
+            </svg>
+        </button>
+
+        <!-- Chat Window -->
+        <div id="chat-window" class="card shadow-lg mt-3 d-none"
+            style="width: 350px; height: 500px; display: flex; flex-direction: column;">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0">MediBook AI Assistant</h6>
+                <button type="button" class="btn-close btn-close-white" id="chat-close-btn"></button>
+            </div>
+            <div class="card-body" id="chat-messages"
+                style="overflow-y: auto; flex-grow: 1; background-color: #f8f9fa;">
+                <div class="d-flex justify-content-start mb-2">
+                    <div class="bg-light p-2 rounded text-dark border">
+                        Hello! I am your AI assistant. How can I help you today?
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="input-group">
+                    <input type="text" id="chat-input" class="form-control" placeholder="Type a symptom..."
+                        onkeypress="handleEnter(event)">
+                    <button class="btn btn-primary" type="button" onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chatToggleBtn = document.getElementById('chat-toggle-btn');
+        const chatWindow = document.getElementById('chat-window');
+        const chatCloseBtn = document.getElementById('chat-close-btn');
+        const chatInput = document.getElementById('chat-input');
+        const chatMessages = document.getElementById('chat-messages');
+
+        chatToggleBtn.addEventListener('click', () => {
+            chatToggleBtn.style.display = 'none';   // Hide the bubble when opening chat
+            chatWindow.classList.remove('d-none');
+            chatInput.focus();
+        });
+
+        chatCloseBtn.addEventListener('click', () => {
+            chatWindow.classList.add('d-none');
+            chatToggleBtn.style.display = 'block';  // Show the bubble again when closing
+        });
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            // Add User Message
+            appendMessage(message, 'end', 'bg-primary text-white');
+            chatInput.value = '';
+
+            try {
+                const response = await fetch('/chat/message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message })
+                });
+                const data = await response.json();
+
+                // Add AI Message
+                appendMessage(data.response, 'start', 'bg-light text-dark border');
+
+            } catch (error) {
+                appendMessage("Sorry, I'm having trouble connecting right now.", 'start', 'bg-danger text-white');
+            }
+        }
+
+        function appendMessage(text, align, classes) {
+            const div = document.createElement('div');
+            div.className = `d-flex justify-content-${align} mb-2`;
+            div.innerHTML = `<div class="${classes} p-2 rounded" style="max-width: 80%; white-space: pre-line;">${text}</div>`;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
 </body>
+
 </html>

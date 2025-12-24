@@ -3,6 +3,7 @@ from . import db
 class Clinic(db.Model):
     __tablename__ = 'clinics'
     clinic_id = db.Column(db.Integer, primary_key=True)
+    #phase5: Custom clinic locations
     name = db.Column(db.String(150), nullable=False)
     address = db.Column(db.String(200), nullable=False)
     city = db.Column(db.String(100), nullable=False)
@@ -17,6 +18,7 @@ class Appointment(db.Model):
     datetime = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.Enum('pending', 'confirmed', 'cancelled', name='appointment_status'), default='pending')
     payment_method = db.Column(db.Enum('online', 'at_clinic', name='payment_methods'), nullable=False)
+    created_at = db.Column(db.DateTime, default=db.func.now(), nullable=False)
 
     # Relationships
     patient = db.relationship('Patient', backref='appointments')
@@ -35,6 +37,7 @@ class DoctorAvailability(db.Model):
     doctor = db.relationship('Doctor', backref='availability_slots')
 
 class Review(db.Model):
+    #phase5: Review system
     __tablename__ = 'reviews'
     review_id = db.Column(db.Integer, primary_key=True)
     patient_id = db.Column(db.Integer, db.ForeignKey('patients.patient_id'), nullable=False)

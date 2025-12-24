@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">Edit Profile</div>
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <img src="{{ url_for('static', filename='uploads/profiles/' + user.profile_picture) }}"
+                        alt="Profile Picture" class="rounded-circle"
+                        style="width: 120px; height: 120px; object-fit: cover;">
+                </div>
+
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">Full Name</label>
+                        <input type="text" class="form-control" name="name" value="{{ user.name }}" required>
+                    </div>
+
+                    {% if user.role == 'patient' and user.patient %}
+                    <div class="mb-3">
+                        <label class="form-label">Medical History (Conditions, Allergies, Medications)</label>
+                        <textarea class="form-control" name="medical_history" rows="6" placeholder="e.g. Asthma, Penicillin allergy, Takes Metformin daily">{{ user.patient.medical_history }}</textarea>
+                        <small class="text-muted">This helps doctors provide better care.</small>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label">Change Profile Picture</label>
+                        <input type="file" class="form-control" name="profile_picture">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary w-100">Update Profile</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

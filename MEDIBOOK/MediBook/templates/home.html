@@ -26,8 +26,13 @@
                     </option>
                     {% endfor %}
                 </select>
+                </select>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-12 mt-2">
+                <input type="text" name="name" class="form-control" placeholder="Search by Doctor Name"
+                    value="{{ request.args.get('name', '') }}">
+            </div>
+            <div class="col-md-2 mt-2">
                 <button type="submit" class="btn btn-primary w-100">Search</button>
             </div>
         </form>
@@ -39,7 +44,12 @@
     <div class="col-md-4 mb-4">
         <div class="card h-100">
             <div class="card-body">
-                <h5 class="card-title">{{ doctor.user.name }}</h5>
+                <div class="d-flex align-items-center mb-3">
+                    <img src="{{ url_for('static', filename='uploads/profiles/' + (doctor.user.profile_picture or 'default.png')) }}"
+                        alt="{{ doctor.user.name }}" class="rounded-circle me-3"
+                        style="width: 60px; height: 60px; object-fit: cover;">
+                    <h5 class="card-title mb-0">{{ doctor.user.name }}</h5>
+                </div>
                 <h6 class="card-subtitle mb-2 text-muted">{{ doctor.specialization }}</h6>
                 <p class="card-text">
                     <strong>Clinic:</strong> {{ doctor.clinic.name }}<br>
